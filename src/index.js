@@ -2,12 +2,14 @@ import express from "express"
 import cors from "cors"
 import { MongoClient } from "mongodb"
 import dayjs from "dayjs"
+import dotenv from "dotenv"
 
 // MAGIC NUMBERS
 const UPDATEPARTICIPANTSTIME = 10000
 const PORT = 5000
 
-const mongoClient = new MongoClient("mongodb://localhost:27017")
+dotenv.config()
+const mongoClient = new MongoClient(DATABASE_URL)
 let db
 mongoClient.connect(() => (db = mongoClient.db("bate_papo_uol")))
 let time
