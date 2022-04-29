@@ -9,7 +9,7 @@ const UPDATEPARTICIPANTSTIME = 10000
 const PORT = 5000
 
 dotenv.config()
-const mongoClient = new MongoClient(DATABASE_URL)
+const mongoClient = new MongoClient(process.env.DATABASE_URL)
 let db
 mongoClient.connect(() => (db = mongoClient.db("bate_papo_uol")))
 let time
