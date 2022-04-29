@@ -81,6 +81,29 @@ app.post("/messages", async (req, res) => {
 	}
 })
 
+app.get("/messages", async (req, res) => {
+	const limit = parseInt(req.query.limit)
+	const { user } = req.headers
+	const options = {
+		limit,
+	}
+	try {
+		await mongoClient.connect()
+		const test = await db.collection("messages").find({}).toArray()
+		//console.log(test)
+		const messages = await db
+			.collection("messages")
+			.find({ $or: [{ to: "Todos" }, { to: user }] }, options)
+			.toArray()
+		res.status(200).send(messages)
+	} catch (error) {
+		console.log(error)
+		res.send(500, error) // erro interno
+	} finally {
+		mongoClient.close()
+	}
+})
+
 app.listen(PORT, () => {
 	console.log(`Server started on port ${PORT}`)
 })
