@@ -104,6 +104,23 @@ app.get("/messages", async (req, res) => {
 	}
 })
 
+app.post("/status", async (req, res) => {
+	const { user } = req.headers
+	const lastStatus = Date.now()
+	try {
+		await mongoClient.connect()
+		const isConnected = await db
+			.collection("participants")
+			.findOneAndUpdate({ name: user }, { $set: { lastStatus } })
+		isConnected.value ? res.sendStatus(200) : res.sendStatus(404)
+	} catch (error) {
+		console.log(error)
+		res.send(500, error)
+	} finally {
+		mongoClient.close()
+	}
+})
+
 app.listen(PORT, () => {
 	console.log(`Server started on port ${PORT}`)
 })
