@@ -3,11 +3,16 @@
 	"version": "1.0.0",
 	"description": "API for UOL chat",
 	"main": "index.js",
-	"scripts": {},
+	"scripts": {
+		"start": "node index.js",
+		"start-dev": "nodemon ./src/index.js"
+	},
+	"type": "module",
 	"author": "Lucas Alves Rodrigues",
 	"license": "ISC",
 	"dependencies": {
 		"cors": "^2.8.5",
+		"dayjs": "^1.11.1",
 		"dotenv": "^16.0.0",
 		"express": "^4.18.0",
 		"mongodb": "^4.5.0"
