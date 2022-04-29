@@ -62,6 +62,25 @@ app.get("/participants", async (req, res) => {
 	}
 })
 
+app.post("/messages", async (req, res) => {
+	// validações
+	const { to, text, type } = req.body
+	time = getTime()
+	const { user } = req.headers
+	try {
+		await mongoClient.connect()
+		await db
+			.collection("messages")
+			.insertOne({ from: user, to, text, type, time })
+		res.sendStatus(201)
+	} catch (error) {
+		console.log(error)
+		res.sendStatus(500) // erro interno
+	} finally {
+		mongoClient.close()
+	}
+})
+
 app.listen(PORT, () => {
 	console.log(`Server started on port ${PORT}`)
 })
