@@ -121,6 +121,20 @@ app.post("/status", async (req, res) => {
 	}
 })
 
+setInterval(async () => {
+	const minTime = Date.now() - UPDATEPARTICIPANTSTIME
+	try {
+		await mongoClient.connect()
+		await db
+			.collection("participants")
+			.deleteMany({ lastStatus: { $lt: minTime } })
+	} catch (error) {
+		console.log(error)
+	} finally {
+		mongoClient.close()
+	}
+}, UPDATEPARTICIPANTSTIME)
+
 app.listen(PORT, () => {
 	console.log(`Server started on port ${PORT}`)
 })
