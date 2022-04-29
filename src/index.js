@@ -46,6 +46,22 @@ app.post("/participants", async (req, res) => {
 	}
 })
 
+app.get("/participants", async (req, res) => {
+	try {
+		await mongoClient.connect()
+		const participants = await db
+			.collection("participants")
+			.find({})
+			.toArray()
+		res.status(200).send(participants)
+	} catch (error) {
+		console.log(error)
+		res.sendStatus(500) // erro interno
+	} finally {
+		mongoClient.close()
+	}
+})
+
 app.listen(PORT, () => {
 	console.log(`Server started on port ${PORT}`)
 })
