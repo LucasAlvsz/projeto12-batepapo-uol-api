@@ -3,27 +3,72 @@ import cors from "cors"
 import { MongoClient } from "mongodb"
 import dayjs from "dayjs"
 import dotenv from "dotenv"
+import joi from "joi"
+import { stripHtml } from "string-strip-html"
 
-// MAGIC NUMBERS
+/*            MAGIC NUMBERS             */
 const UPDATEPARTICIPANTSTIME = 10000
 const PORT = 5000
+/* ------------------------------------ */
 
 dotenv.config()
 const mongoClient = new MongoClient(process.env.DATABASE_URL)
 let db
-mongoClient.connect(() => (db = mongoClient.db("bate_papo_uol")))
+const promise = mongoClient.connect()
+promise.then(() => (db = mongoClient.db("bate_papo_uol")))
 let time
 const getTime = () => (time = dayjs().format("HH:mm:ss"))
+
+const validate = (reqId, req) => {
+	if (reqId === "POST-/participants") {
+		const participantsSchema = joi.object({
+			name: joi.string().required(),
+		})
+		const validation = participantsSchema.validate(req.body, {
+			abortEarly: false,
+		})
+
+		if (validation.error) return validation.error.details
+	} else if (reqId === "POST-/messages") {
+		const messagesSchema = joi.object({
+			to: joi.string().required(),
+			text: joi.string().required(),
+			type: joi.string().valid("message", "private_message").required(),
+		})
+		const validation = messagesSchema.validate(req.body, {
+			abortEarly: false,
+		})
+		if (!req.headers.user)
+			validation.error
+				? validation.error.details.unshift({
+						message: 'Missing headers: "User"',
+				  })
+				: (validation.error = {
+						details: [{ message: 'Missing headers: "User"' }],
+				  })
+
+		if (validation.error) return validation.error.details
+	} else if (reqId === "GET-/messages") {
+		if (!req.headers.user) return [{ message: 'Missing headers: "User"' }]
+	} else if (reqId === "POST-/status")
+		if (!req.headers.user) return [{ message: 'Missing headers: "User"' }]
+
+	return false
+}
+const dataSanitize = data => {
+	return stripHtml(`${data}`).result.trim()
+}
 
 const app = express()
 app.use(cors())
 app.use(express.json())
 
 app.post("/participants", async (req, res) => {
-	// validaçoes aqui
-	console.log("/participantes POST-request")
+	const validation = validate("POST-/participants", req)
+	if (validation) return res.status(422).send(validation.map(e => e.message))
 	const { name } = req.body
 	time = getTime()
+
 	try {
 		const user = await db.collection("participants").findOne({ name })
 		if (user) return res.sendStatus(409) // o ususario ja exist
@@ -42,8 +87,6 @@ app.post("/participants", async (req, res) => {
 	} catch (error) {
 		console.log(error)
 		res.sendStatus(500) // erro interno
-	} finally {
-		mongoClient.close()
 	}
 })
 
@@ -57,13 +100,12 @@ app.get("/participants", async (req, res) => {
 	} catch (error) {
 		console.log(error)
 		res.sendStatus(500) // erro interno
-	} finally {
-		mongoClient.close()
 	}
 })
 
 app.post("/messages", async (req, res) => {
-	// validações
+	const validation = validate("POST-/messages", req)
+	if (validation) return res.status(422).send(validation.map(e => e.message))
 	const { to, text, type } = req.body
 	time = getTime()
 	const { user } = req.headers
@@ -75,8 +117,6 @@ app.post("/messages", async (req, res) => {
 	} catch (error) {
 		console.log(error)
 		res.sendStatus(500) // erro interno
-	} finally {
-		mongoClient.close()
 	}
 })
 
@@ -97,12 +137,12 @@ app.get("/messages", async (req, res) => {
 	} catch (error) {
 		console.log(error)
 		res.send(500, error) // erro interno
-	} finally {
-		mongoClient.close()
 	}
 })
 
 app.post("/status", async (req, res) => {
+	const validation = validate("POST-/status", req)
+	if (validation) return res.status(422).send(validation.map(e => e.message))
 	const { user } = req.headers
 	const lastStatus = Date.now()
 	try {
@@ -113,8 +153,6 @@ app.post("/status", async (req, res) => {
 	} catch (error) {
 		console.log(error)
 		res.send(500, error)
-	} finally {
-		mongoClient.close()
 	}
 })
 
@@ -126,8 +164,6 @@ setInterval(async () => {
 			.deleteMany({ lastStatus: { $lt: minTime } })
 	} catch (error) {
 		console.log(error)
-	} finally {
-		mongoClient.close()
 	}
 }, UPDATEPARTICIPANTSTIME)
 
