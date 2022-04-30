@@ -1,6 +1,6 @@
 import express from "express"
 import cors from "cors"
-import { MongoClient } from "mongodb"
+import { MongoClient, ObjectId } from "mongodb"
 import dayjs from "dayjs"
 import dotenv from "dotenv"
 import joi from "joi"
@@ -133,7 +133,7 @@ app.get("/messages", async (req, res) => {
 	const { user } = req.headers
 	const options = {
 		limit,
-		...(limit && { sort: { time: -1 } }),
+		//...(limit && { sort: { time: -1 } }),
 	}
 	try {
 		const test = await db.collection("messages").find({}).toArray()
@@ -145,7 +145,54 @@ app.get("/messages", async (req, res) => {
 		res.status(200).send(messages)
 	} catch (error) {
 		console.log(error)
-		res.send(500, error) // erro interno
+		res.send(500, error)
+	}
+})
+
+app.delete("/messages/:messageId", async (req, res) => {
+	const { messageId } = req.params
+	const { user } = req.headers
+	try {
+		const message = await db
+			.collection("messages")
+			.findOneAndDelete({ _id: ObjectId(messageId), from: user })
+		if (!message.value) {
+			const participant = await db
+				.collection("participants")
+				.findOne({ name: user })
+			if (participant) return res.sendStatus(401)
+			return res.sendStatus(404)
+		}
+	} catch (error) {
+		console.log(error)
+		res.sendStatus(500)
+	}
+})
+
+app.put("/messages/:messageId", async (req, res) => {
+	const { messageId } = req.params
+	const { user } = req.headers
+	const validation = validate("PUT-/messages", req)
+	if (validation) return res.status(422).send(validation.map(e => e.message))
+	const { text } = dataSanitize(req.body)
+	try {
+		const message = await db
+			.collection("messages")
+			.findOneAndUpdate(
+				{ _id: ObjectId(messageId), from: user },
+				{ $set: { text } }
+			)
+		if (!message.value) {
+			const participant = await db
+				.collection("participants")
+				.findOne({ name: user })
+			if (participant) return res.sendStatus(401)
+			return res.sendStatus(404)
+		}
+		res.sendStatus(200)
+	} catch (error) {
+		console.log(error)
+		res.sendStatus(500)
 	}
 })
 
