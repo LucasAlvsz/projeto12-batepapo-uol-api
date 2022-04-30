@@ -56,7 +56,12 @@ const validate = (reqId, req) => {
 	return false
 }
 const dataSanitize = data => {
-	return stripHtml(`${data}`).result.trim()
+	const sanitizedData = { ...data }
+	Object.keys(sanitizedData).forEach(
+		key =>
+			(sanitizedData[key] = stripHtml(sanitizedData[key]).result.trim())
+	)
+	return sanitizedData
 }
 
 const app = express()
@@ -64,14 +69,16 @@ app.use(cors())
 app.use(express.json())
 
 app.post("/participants", async (req, res) => {
+	console.log("/participantes POST-request")
 	const validation = validate("POST-/participants", req)
 	if (validation) return res.status(422).send(validation.map(e => e.message))
-	const { name } = req.body
+	const { name } = dataSanitize(req.body)
 	time = getTime()
-
 	try {
-		const user = await db.collection("participants").findOne({ name })
-		if (user) return res.sendStatus(409) // o ususario ja exist
+		const participant = await db
+			.collection("participants")
+			.findOne({ name })
+		if (participant) return res.sendStatus(409) // o ususario ja exist
 		await db
 			.collection("participants")
 			.insertOne({ name: name, lastStatus: Date.now() })
@@ -83,10 +90,10 @@ app.post("/participants", async (req, res) => {
 			type: "status",
 			time,
 		})
-		res.sendStatus(201) // criado
+		res.status(201).send({ name })
 	} catch (error) {
 		console.log(error)
-		res.sendStatus(500) // erro interno
+		res.sendStatus(500)
 	}
 })
 
@@ -106,8 +113,9 @@ app.get("/participants", async (req, res) => {
 app.post("/messages", async (req, res) => {
 	const validation = validate("POST-/messages", req)
 	if (validation) return res.status(422).send(validation.map(e => e.message))
-	const { to, text, type } = req.body
+	const { to, text, type } = dataSanitize(req.body)
 	time = getTime()
+	console.log(time)
 	const { user } = req.headers
 	try {
 		await db
@@ -125,6 +133,7 @@ app.get("/messages", async (req, res) => {
 	const { user } = req.headers
 	const options = {
 		limit,
+		...(limit && { sort: { time: -1 } }),
 	}
 	try {
 		const test = await db.collection("messages").find({}).toArray()
