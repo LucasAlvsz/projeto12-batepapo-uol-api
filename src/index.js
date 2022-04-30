@@ -29,7 +29,7 @@ const validate = (reqId, req) => {
 		})
 
 		if (validation.error) return validation.error.details
-	} else if (reqId === "POST-/messages") {
+	} else if (reqId === "POST-/messages" || reqId === "PUT-/messages") {
 		const messagesSchema = joi.object({
 			to: joi.string().required(),
 			text: joi.string().required(),
@@ -48,10 +48,12 @@ const validate = (reqId, req) => {
 				  })
 
 		if (validation.error) return validation.error.details
+	} else if (reqId === "DELETE-/messages") {
 	} else if (reqId === "GET-/messages") {
 		if (!req.headers.user) return [{ message: 'Missing headers: "User"' }]
-	} else if (reqId === "POST-/status")
+	} else if (reqId === "POST-/status") {
 		if (!req.headers.user) return [{ message: 'Missing headers: "User"' }]
+	}
 
 	return false
 }
@@ -69,7 +71,6 @@ app.use(cors())
 app.use(express.json())
 
 app.post("/participants", async (req, res) => {
-	console.log("/participantes POST-request")
 	const validation = validate("POST-/participants", req)
 	if (validation) return res.status(422).send(validation.map(e => e.message))
 	const { name } = dataSanitize(req.body)
@@ -115,7 +116,6 @@ app.post("/messages", async (req, res) => {
 	if (validation) return res.status(422).send(validation.map(e => e.message))
 	const { to, text, type } = dataSanitize(req.body)
 	time = getTime()
-	console.log(time)
 	const { user } = req.headers
 	try {
 		await db
@@ -124,7 +124,7 @@ app.post("/messages", async (req, res) => {
 		res.sendStatus(201)
 	} catch (error) {
 		console.log(error)
-		res.sendStatus(500) // erro interno
+		res.sendStatus(500)
 	}
 })
 
@@ -133,16 +133,14 @@ app.get("/messages", async (req, res) => {
 	const { user } = req.headers
 	const options = {
 		limit,
-		//...(limit && { sort: { time: -1 } }),
+		...(limit && { sort: { $natural: -1 } }),
 	}
 	try {
-		const test = await db.collection("messages").find({}).toArray()
-		//console.log(test)
 		const messages = await db
 			.collection("messages")
 			.find({ $or: [{ to: "Todos" }, { to: user }] }, options)
 			.toArray()
-		res.status(200).send(messages)
+		res.status(200).send(messages.reverse())
 	} catch (error) {
 		console.log(error)
 		res.send(500, error)
@@ -150,17 +148,19 @@ app.get("/messages", async (req, res) => {
 })
 
 app.delete("/messages/:messageId", async (req, res) => {
+	const validation = validate("DELETE-/messages", req)
+
 	const { messageId } = req.params
 	const { user } = req.headers
 	try {
 		const message = await db
 			.collection("messages")
-			.findOneAndDelete({ _id: ObjectId(messageId), from: user })
+			.findOneAndDelete({ _id: new ObjectId(messageId), from: user })
 		if (!message.value) {
-			const participant = await db
-				.collection("participants")
-				.findOne({ name: user })
-			if (participant) return res.sendStatus(401)
+			const validation = await db
+				.collection("messages")
+				.findOne({ _id: new ObjectId(messageId) })
+			if (validation) return res.sendStatus(401)
 			return res.sendStatus(404)
 		}
 	} catch (error) {
@@ -179,14 +179,14 @@ app.put("/messages/:messageId", async (req, res) => {
 		const message = await db
 			.collection("messages")
 			.findOneAndUpdate(
-				{ _id: ObjectId(messageId), from: user },
+				{ _id: new ObjectId(messageId), from: user },
 				{ $set: { text } }
 			)
 		if (!message.value) {
-			const participant = await db
-				.collection("participants")
-				.findOne({ name: user })
-			if (participant) return res.sendStatus(401)
+			const validation = await db
+				.collection("messages")
+				.findOne({ _id: new ObjectId(messageId) })
+			if (validation) return res.sendStatus(401)
 			return res.sendStatus(404)
 		}
 		res.sendStatus(200)
