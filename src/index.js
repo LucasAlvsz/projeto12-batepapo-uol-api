@@ -25,7 +25,6 @@ app.post("/participants", async (req, res) => {
 	const { name } = req.body
 	time = getTime()
 	try {
-		await mongoClient.connect()
 		const user = await db.collection("participants").findOne({ name })
 		if (user) return res.sendStatus(409) // o ususario ja exist
 		await db
@@ -50,7 +49,6 @@ app.post("/participants", async (req, res) => {
 
 app.get("/participants", async (req, res) => {
 	try {
-		await mongoClient.connect()
 		const participants = await db
 			.collection("participants")
 			.find({})
@@ -70,7 +68,6 @@ app.post("/messages", async (req, res) => {
 	time = getTime()
 	const { user } = req.headers
 	try {
-		await mongoClient.connect()
 		await db
 			.collection("messages")
 			.insertOne({ from: user, to, text, type, time })
@@ -90,7 +87,6 @@ app.get("/messages", async (req, res) => {
 		limit,
 	}
 	try {
-		await mongoClient.connect()
 		const test = await db.collection("messages").find({}).toArray()
 		//console.log(test)
 		const messages = await db
@@ -110,7 +106,6 @@ app.post("/status", async (req, res) => {
 	const { user } = req.headers
 	const lastStatus = Date.now()
 	try {
-		await mongoClient.connect()
 		const isConnected = await db
 			.collection("participants")
 			.findOneAndUpdate({ name: user }, { $set: { lastStatus } })
@@ -126,7 +121,6 @@ app.post("/status", async (req, res) => {
 setInterval(async () => {
 	const minTime = Date.now() - UPDATEPARTICIPANTSTIME
 	try {
-		await mongoClient.connect()
 		await db
 			.collection("participants")
 			.deleteMany({ lastStatus: { $lt: minTime } })
