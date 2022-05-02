@@ -7,7 +7,8 @@ import joi from "joi"
 import { stripHtml } from "string-strip-html"
 
 /*            MAGIC NUMBERS             */
-const UPDATEPARTICIPANTSTIME = 10000
+const STATUSUPDATEINTERVAL = 15000
+const MAXTIMEWITHOUTSTATUSUPDATE = 10000
 const PORT = 5000
 /* ------------------------------------ */
 
@@ -19,6 +20,10 @@ promise.then(() => (db = mongoClient.db("bate_papo_uol")))
 let time
 const getTime = () => (time = dayjs().format("HH:mm:ss"))
 
+const validateObjectId = id => {
+	if (ObjectId.isValid(id)) if (String(new ObjectId(id)) === id) return true
+	return false
+}
 const validate = (reqId, req) => {
 	if (reqId === "POST-/participants") {
 		const participantsSchema = joi.object({
@@ -30,6 +35,10 @@ const validate = (reqId, req) => {
 
 		if (validation.error) return validation.error.details
 	} else if (reqId === "POST-/messages" || reqId === "PUT-/messages") {
+		if (reqId === "PUT-/messages")
+			if (!validateObjectId(req.params.messageId))
+				return [{ message: "Invalid message id" }]
+		if (!req.headers.user) return [{ message: 'Missing headers: "User"' }]
 		const messagesSchema = joi.object({
 			to: joi.string().required(),
 			text: joi.string().required(),
@@ -38,25 +47,29 @@ const validate = (reqId, req) => {
 		const validation = messagesSchema.validate(req.body, {
 			abortEarly: false,
 		})
-		if (!req.headers.user)
-			validation.error
-				? validation.error.details.unshift({
-						message: 'Missing headers: "User"',
-				  })
-				: (validation.error = {
-						details: [{ message: 'Missing headers: "User"' }],
-				  })
 
 		if (validation.error) return validation.error.details
-	} else if (reqId === "DELETE-/messages") {
 	} else if (reqId === "GET-/messages") {
+		if (!req.headers.user) return [{ message: 'Missing headers: "User"' }]
+		const limitSchema = joi.object({
+			limit: joi.number().integer().min(1),
+		})
+		const validation = limitSchema.validate(req.query, {
+			abortEarly: false,
+		})
+		if (validation.error) return validation.error.details
+	} else if (reqId === "POST-/status") {
+		if (!req.headers.user) return [{ message: 'Missing headers: "User"' }]
+	} else if (reqId === "DELETE-/messages") {
+		if (!validateObjectId(req.params.messageId))
+			return [{ message: "Invalid message id" }]
 		if (!req.headers.user) return [{ message: 'Missing headers: "User"' }]
 	} else if (reqId === "POST-/status") {
 		if (!req.headers.user) return [{ message: 'Missing headers: "User"' }]
 	}
-
 	return false
 }
+
 const dataSanitize = data => {
 	const sanitizedData = { ...data }
 	Object.keys(sanitizedData).forEach(
@@ -79,7 +92,7 @@ app.post("/participants", async (req, res) => {
 		const participant = await db
 			.collection("participants")
 			.findOne({ name })
-		if (participant) return res.sendStatus(409) // o ususario ja exist
+		if (participant) return res.sendStatus(409)
 		await db
 			.collection("participants")
 			.insertOne({ name: name, lastStatus: Date.now() })
@@ -96,7 +109,7 @@ app.post("/participants", async (req, res) => {
 		console.log(error)
 		res.sendStatus(500)
 	}
-})
+}) // OK
 
 app.get("/participants", async (req, res) => {
 	try {
@@ -104,12 +117,12 @@ app.get("/participants", async (req, res) => {
 			.collection("participants")
 			.find({})
 			.toArray()
-		res.status(200).send(participants)
+		res.status(200).send(participants) // faz sentido retornar todos os campos?
 	} catch (error) {
 		console.log(error)
-		res.sendStatus(500) // erro interno
+		res.sendStatus(500)
 	}
-})
+}) // Check this
 
 app.post("/messages", async (req, res) => {
 	const validation = validate("POST-/messages", req)
@@ -118,38 +131,47 @@ app.post("/messages", async (req, res) => {
 	time = getTime()
 	const { user } = req.headers
 	try {
+		const isConnected = await db
+			.collection("participants")
+			.findOne({ name: user })
+		if (!isConnected) return res.status(422).send("User not found")
 		await db
 			.collection("messages")
 			.insertOne({ from: user, to, text, type, time })
-		res.sendStatus(201)
+		res.sendStatus(201) // return message id?
 	} catch (error) {
 		console.log(error)
 		res.sendStatus(500)
 	}
-})
+}) // Check this
 
 app.get("/messages", async (req, res) => {
+	const validation = validate("GET-/messages", req)
+	if (validation) return res.status(422).send(validation.map(e => e.message))
 	const limit = parseInt(req.query.limit)
 	const { user } = req.headers
 	const options = {
-		limit,
+		...(limit && { limit }),
 		...(limit && { sort: { $natural: -1 } }),
 	}
 	try {
 		const messages = await db
 			.collection("messages")
-			.find({ $or: [{ to: "Todos" }, { to: user }] }, options)
+			.find(
+				{ $or: [{ to: "Todos" }, { to: user }, { from: user }] },
+				options
+			)
 			.toArray()
-		res.status(200).send(messages.reverse())
+		res.status(200).send(messages.reverse()) // return id?
 	} catch (error) {
 		console.log(error)
 		res.send(500, error)
 	}
-})
+}) // Check this
 
 app.delete("/messages/:messageId", async (req, res) => {
 	const validation = validate("DELETE-/messages", req)
-
+	if (validation) return res.status(422).send(validation.map(e => e.message))
 	const { messageId } = req.params
 	const { user } = req.headers
 	try {
@@ -163,11 +185,12 @@ app.delete("/messages/:messageId", async (req, res) => {
 			if (validation) return res.sendStatus(401)
 			return res.sendStatus(404)
 		}
+		res.sendStatus(200)
 	} catch (error) {
 		console.log(error)
 		res.sendStatus(500)
 	}
-})
+}) // Ok
 
 app.put("/messages/:messageId", async (req, res) => {
 	const { messageId } = req.params
@@ -176,6 +199,10 @@ app.put("/messages/:messageId", async (req, res) => {
 	if (validation) return res.status(422).send(validation.map(e => e.message))
 	const { text } = dataSanitize(req.body)
 	try {
+		const isConnected = await db
+			.collection("participants")
+			.findOne({ name: user })
+		if (!isConnected) return res.status(422).send("User not found")
 		const message = await db
 			.collection("messages")
 			.findOneAndUpdate(
@@ -208,20 +235,35 @@ app.post("/status", async (req, res) => {
 		isConnected.value ? res.sendStatus(200) : res.sendStatus(404)
 	} catch (error) {
 		console.log(error)
-		res.send(500, error)
+		res.sendStatus(500)
 	}
 })
 
 setInterval(async () => {
-	const minTime = Date.now() - UPDATEPARTICIPANTSTIME
+	const minTime = Date.now() - MAXTIMEWITHOUTSTATUSUPDATE
+	time = getTime()
 	try {
+		const deletedParticipants = await db
+			.collection("participants")
+			.find({ lastStatus: { $lt: minTime } })
+			.toArray()
 		await db
 			.collection("participants")
 			.deleteMany({ lastStatus: { $lt: minTime } })
+		deletedParticipants.forEach(
+			async ({ name }) =>
+				await db.collection("messages").insertOne({
+					from: name,
+					to: "Todos",
+					text: "sai da sala...",
+					type: "status",
+					time,
+				})
+		)
 	} catch (error) {
 		console.log(error)
 	}
-}, UPDATEPARTICIPANTSTIME)
+}, STATUSUPDATEINTERVAL)
 
 app.listen(PORT, () => {
 	console.log(`Server started on port ${PORT}`)
