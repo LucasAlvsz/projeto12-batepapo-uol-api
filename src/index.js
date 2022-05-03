@@ -109,7 +109,7 @@ app.post("/participants", async (req, res) => {
 		console.log(error)
 		res.sendStatus(500)
 	}
-}) // OK
+})
 
 app.get("/participants", async (req, res) => {
 	try {
@@ -122,7 +122,7 @@ app.get("/participants", async (req, res) => {
 		console.log(error)
 		res.sendStatus(500)
 	}
-}) // Check this
+})
 
 app.post("/messages", async (req, res) => {
 	const validation = validate("POST-/messages", req)
@@ -138,12 +138,12 @@ app.post("/messages", async (req, res) => {
 		await db
 			.collection("messages")
 			.insertOne({ from: user, to, text, type, time })
-		res.sendStatus(201) // return message id?
+		res.sendStatus(201)
 	} catch (error) {
 		console.log(error)
 		res.sendStatus(500)
 	}
-}) // Check this
+})
 
 app.get("/messages", async (req, res) => {
 	const validation = validate("GET-/messages", req)
@@ -165,9 +165,9 @@ app.get("/messages", async (req, res) => {
 		res.status(200).send(messages.reverse()) // return id?
 	} catch (error) {
 		console.log(error)
-		res.send(500, error)
+		res.statusCode(500)
 	}
-}) // Check this
+})
 
 app.delete("/messages/:messageId", async (req, res) => {
 	const validation = validate("DELETE-/messages", req)
@@ -190,7 +190,7 @@ app.delete("/messages/:messageId", async (req, res) => {
 		console.log(error)
 		res.sendStatus(500)
 	}
-}) // Ok
+})
 
 app.put("/messages/:messageId", async (req, res) => {
 	const { messageId } = req.params
