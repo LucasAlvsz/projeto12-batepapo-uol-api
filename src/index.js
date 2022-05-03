@@ -117,7 +117,7 @@ app.get("/participants", async (req, res) => {
 			.collection("participants")
 			.find({})
 			.toArray()
-		res.status(200).send(participants) // faz sentido retornar todos os campos?
+		res.status(200).send(participants)
 	} catch (error) {
 		console.log(error)
 		res.sendStatus(500)
@@ -162,7 +162,7 @@ app.get("/messages", async (req, res) => {
 				options
 			)
 			.toArray()
-		res.status(200).send(messages.reverse()) // return id?
+		res.status(200).send(messages.reverse())
 	} catch (error) {
 		console.log(error)
 		res.statusCode(500)
